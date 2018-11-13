@@ -1,3 +1,10 @@
+/* 
+ * Joshua Howell
+ * jhowell@umass.edu
+ * 
+ * Anthony Mendez
+ * anthonymende@umass.edu
+ */
 /*-------------------------------------------------------------------                             
  * Lab 5 Starter code:                                                                            
  *        single doubly-linked free block list with LIFO policy                                   
@@ -355,33 +362,49 @@ int mm_init () {
 
 /* Allocate a block of size size and return a pointer to it. */
 void* mm_malloc (size_t size) {
-  size_t reqSize;
-  BlockInfo * ptrFreeBlock = NULL;
-  size_t blockSize;
-  size_t precedingBlockUseTag;
+	// Zero-size requests get NULL.
+	if (size == 0)
+		return NULL;
 
-  // Zero-size requests get NULL.
-  if (size == 0) {
-    return NULL;
-  }
+	size_t reqSize;
+	BlockInfo * ptrFreeBlock = NULL;
+	size_t blockSize;
+	size_t precedingBlockUseTag;
 
-  // Add one word for the initial size header.
-  // Note that we don't need to boundary tag when the block is used!
-  size += WORD_SIZE;
-  if (size <= MIN_BLOCK_SIZE) {
-    // Make sure we allocate enough space for a blockInfo in case we
-    // free this block (when we free this block, we'll need to use the
-    // next pointer, the prev pointer, and the boundary tag).
-    reqSize = MIN_BLOCK_SIZE;
-  } else {
-    // Round up for correct alignment
-    reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT);
-  }
+	size += WORD_SIZE; // Add one word for the initial size header.
 
-  // Implement mm_malloc.  You can change or remove any of the above
-  // code.  It is included as a suggestion of where to start.
-  // You will want to replace this return statement...
-  return NULL; 
+	// Make sure we allocate enough space for a blockInfo in case we free this block.
+	if (size <= MIN_BLOCK_SIZE)
+		reqSize = MIN_BLOCK_SIZE;
+	else
+		reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT); // Round up for correct alignment
+
+	//Find enough free space
+	ptrFreeBlock = (BlockInfo*) searchFreeList(reqSize);
+	if(ptrFreeBlock == NULL) { // Get enough new heap space if there wasn't a big enough block free already
+		requestMoreSpace(reqSize);
+		ptrFreeBlock = (BlockInfo*) searchFreeList(reqSize);
+	}
+	removeFreeBlock(ptrFreeBlock); // Remove the found block from the free blocks linked list
+
+	blockSize = SIZE(ptrFreeBlock->sizeAndTags); // Get the size of the found block
+	size_t remainingFreeSize = blockSize - reqSize; // Get the amount of unneeded space in the found block
+	precedingBlockUseTag = ptrFreeBlock->sizeAndTags & TAG_PRECEDING_USED; // Save the preceding_used bit
+	size_t newTags = TAG_USED | precedingBlockUseTag; // Build a new tag for the allocated block
+
+	if(remainingFreeSize >= MIN_BLOCK_SIZE) { // If there is enough space left for a smaller free block, make one
+		ptrFreeBlock->sizeAndTags = reqSize; // Set the allocated block's size to
+		BlockInfo* newFreeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(ptrFreeBlock,reqSize); // Initialize the new free block
+		newFreeBlock->sizeAndTags = remainingFreeSize; // Set the new free block's size
+		newFreeBlock->sizeAndTags |= TAG_PRECEDING_USED; // Set the new free block's preceding_used bit to one
+		newFreeBlock->sizeAndTags &= ~TAG_USED; // Set the new free block's used bit to zero
+		*((size_t*) UNSCALED_POINTER_ADD(ptrFreeBlock,blockSize-WORD_SIZE)) = newFreeBlock->sizeAndTags; // Set the new free block's footer
+		insertFreeBlock(newFreeBlock); // Add the new free block to the free blocks linked list
+	} else // Otherwise, just allocate the extra space as well
+		((BlockInfo*) UNSCALED_POINTER_ADD(ptrFreeBlock,blockSize))->sizeAndTags |= TAG_PRECEDING_USED; // Set the following block's preceding_used bit to one
+
+	ptrFreeBlock->sizeAndTags |= newTags; // Add the new tags to the allocated block
+	return (UNSCALED_POINTER_ADD(ptrFreeBlock,WORD_SIZE));
 }
 
 /* Free the block referenced by ptr. */
