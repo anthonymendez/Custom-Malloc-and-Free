@@ -367,7 +367,7 @@ void* mm_malloc (size_t size) {
 		return NULL;
 
 	size_t reqSize;
-	BlockInfo * ptrFreeBlock = NULL;
+	BlockInfo* ptrFreeBlock = NULL;
 	size_t blockSize;
 	size_t precedingBlockUseTag;
 
@@ -387,6 +387,7 @@ void* mm_malloc (size_t size) {
 	}
 	removeFreeBlock(ptrFreeBlock); // Remove the found block from the free blocks linked list
 
+	// Get info
 	blockSize = SIZE(ptrFreeBlock->sizeAndTags); // Get the size of the found block
 	size_t remainingFreeSize = blockSize - reqSize; // Get the amount of unneeded space in the found block
 	precedingBlockUseTag = ptrFreeBlock->sizeAndTags & TAG_PRECEDING_USED; // Save the preceding_used bit
@@ -400,22 +401,44 @@ void* mm_malloc (size_t size) {
 		newFreeBlock->sizeAndTags &= ~TAG_USED; // Set the new free block's used bit to zero
 		*((size_t*) UNSCALED_POINTER_ADD(ptrFreeBlock,blockSize-WORD_SIZE)) = newFreeBlock->sizeAndTags; // Set the new free block's footer
 		insertFreeBlock(newFreeBlock); // Add the new free block to the free blocks linked list
-	} else // Otherwise, just allocate the extra space as well
-		((BlockInfo*) UNSCALED_POINTER_ADD(ptrFreeBlock,blockSize))->sizeAndTags |= TAG_PRECEDING_USED; // Set the following block's preceding_used bit to one
+	} else { // Otherwise, just allocate the extra space as well
+		BlockInfo* followingBlock = (BlockInfo*) UNSCALED_POINTER_ADD(ptrFreeBlock,blockSize); // Get the following block
+		followingBlock->sizeAndTags |= TAG_PRECEDING_USED; // Set the following block's preceding_used bit to one
+		if((followingBlock->sizeAndTags & TAG_USED) == 0) // If the following block is not used
+			*((size_t*) UNSCALED_POINTER_ADD(followingBlock,SIZE(followingBlock->sizeAndTags)-WORD_SIZE)) = followingBlock->sizeAndTags; // Set the following block's footer
+	}
 
 	ptrFreeBlock->sizeAndTags |= newTags; // Add the new tags to the allocated block
-	return (UNSCALED_POINTER_ADD(ptrFreeBlock,WORD_SIZE));
+	return (UNSCALED_POINTER_ADD(ptrFreeBlock,WORD_SIZE)); // Return pointer to data after sizeAndTags
 }
 
 /* Free the block referenced by ptr. */
 void mm_free (void *ptr) {
-  size_t payloadSize;
-  BlockInfo * blockInfo;
-  BlockInfo * followingBlock;
+	// Make sure ptr is within the heap and freeable
+	if(ptr > mem_heap_hi() - MIN_BLOCK_SIZE)
+		return;
 
-  // Implement mm_free.  You can change or remove the declaraions
-  // above.  They are included as minor hints.
+	size_t payloadSize;
+	BlockInfo* blockInfo;
+	BlockInfo* followingBlock;
 
+	// Get info
+	blockInfo = (BlockInfo*) UNSCALED_POINTER_SUB(ptr,WORD_SIZE); // Get the block to free
+	payloadSize = SIZE(blockInfo->sizeAndTags); // Get the size of the block to free
+	followingBlock = (BlockInfo*) UNSCALED_POINTER_ADD(blockInfo,payloadSize); // Get the following block
+
+	// Set tags
+	blockInfo->sizeAndTags &= ~TAG_USED; // Set the block's used bit to zero
+	*((size_t*) UNSCALED_POINTER_ADD(blockInfo,payloadSize-WORD_SIZE)) = blockInfo->sizeAndTags; // Set the block's footer
+	followingBlock->sizeAndTags &= ~TAG_PRECEDING_USED; // Set the following block's used bit to zero
+	if((followingBlock->sizeAndTags & TAG_USED) == 0) // If the following block is not used
+		*((size_t*) UNSCALED_POINTER_ADD(followingBlock,SIZE(followingBlock->sizeAndTags)-WORD_SIZE)) = followingBlock->sizeAndTags; // Set the following block's footer
+
+	// Update linked list
+	insertFreeBlock(blockInfo); // Insert block
+	coalesceFreeBlock(blockInfo); // Coalesce block
+
+	return;
 }
 
 
