@@ -449,6 +449,74 @@ int mm_check() {
 
 // Extra credit.
 void* mm_realloc(void* ptr, size_t size) {
-  // ... implementation here ...
-  return NULL;
+    // PTR is null, call malloc(size)
+    if (ptr == NULL) {
+        return mm_malloc(size);
+    }
+
+    // PTR is not null and size is 0, call free(ptr)
+    if (ptr != NULL && size == 0) {
+        mm_free(ptr);
+        return NULL;
+    }
+
+    // Size, BlockInfo and FollowingBlockInfo of ptr
+    size_t oldPayloadSize;
+    BlockInfo* oldBlockInfo;
+    BlockInfo* oldFollowingBlock;
+    oldBlockInfo = (BlockInfo*) UNSCALED_POINTER_SUB(ptr, WORD_SIZE); // Get block to realloc
+    oldPayloadSize = SIZE(oldBlockInfo->sizeAndTags); // Get size of block to realloc
+    oldFollowingBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize); // Get following block
+
+    // Check if new and old size is the same, if so,
+    // just return our current pointer since nothing will change
+    // TODO: Is this fine with what he wants from Optional Extra Credit?
+    if(oldPayloadSize == size) {
+        return ptr;
+    }
+
+    // If our new size is smaller than our old size
+    // Free memory outside of new size bytes
+    if (oldPayloadSize > size) {
+        // TODO: Remove unused byte blocks
+        return ptr;
+    }
+
+    /* From here on out, oldPayloadSize < newPayloadSize */
+
+    /* TODO: // remove todo when done, leave the rest of the comment wheb dibe
+     * Check if there is enoguh room in the next blocks over
+     * If there is, we set those blocks as occupied for our
+     * new memory occupations
+     * Else, we run mm_malloc, free our old memory, and return
+     * the newPtr we got from mm_malloc
+     */
+
+    int m = 0;
+    while (0) { // Check if our next block is occupied
+        // Set block as occupied here
+
+        m++; // Increment size counter
+
+        if (0) { // Check if we are at our required size here
+            m = 0;
+            while(0) { // Iterate through new blocks and set as occupied
+                // Set new blocks as occupied here
+
+                m++; // Increment size counter
+            }
+
+            return ptr; // Return old ptr
+        }
+    }
+
+    // malloc new chunk of bytes and check if it succeeded
+    void* newPtr = mm_malloc(size);
+    if (newPtr == NULL) {
+        return NULL;
+    }
+
+    free(ptr); // Free old memory
+
+    return newPtr; // Return new location
 }
