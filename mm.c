@@ -491,16 +491,12 @@ void* mm_realloc(void* ptr, size_t size) {
         oldBlockInfo->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Build and set a new tag 
         *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize-WORD_SIZE)) = oldBlockInfo->sizeAndTags; // Set the block's new footer
 
-        // Iterate through blocks until we get to the blocks we need to free
-        BlockInfo* current = oldBlockInfo;
-        for(int m = 0; m < size; m++) {
-            current = current->next;
-        }
-
-        current->sizeAndTags = remainingFreeSize; // Set size of free block
-        current->sizeAndTags &= ~TAG_USED; // Set used bit to zero
+        BlockInfo* newFreeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize);
+        newFreeBlock->sizeAndTags = remainingFreeSize; // Set size of free block
+        newFreeBlock->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Set preceding bit to one
+        newFreeBlock->sizeAndTags &= ~TAG_USED; // Set used bit to zero
         *((size_t*) UNSCALED_POINTER_ADD(current, remainingFreeSize-WORD_SIZE)) = current->sizeAndTags; // Set the block's new footer
-        return ptr;
+        return (UNSCALED_POINTER_ADD(oldBlockInfo, WORD_SIZE)); // Return pointer to data after sizeAndTags
     }
 
     /* From here on out, oldPayloadSize < newPayloadSize */
