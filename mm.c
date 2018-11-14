@@ -477,6 +477,9 @@ void* mm_realloc(void* ptr, size_t size) {
 
     // If our new size is smaller than our old size
     // Free memory outside of new size bytes
+    // First check if we have enough bytes to store our free byte
+    // If we don't, we just free and call malloc with our new size
+    // Else we split up our shrink our block size, and create a new free block
     if (oldPayloadSize > size) {
         // TODO: Remove unused byte blocks
         size_t precedingBlockUseTag = oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED; // Save used bit
@@ -495,14 +498,14 @@ void* mm_realloc(void* ptr, size_t size) {
         newFreeBlock->sizeAndTags = remainingFreeSize; // Set size of free block
         newFreeBlock->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Set preceding bit to one
         newFreeBlock->sizeAndTags &= ~TAG_USED; // Set used bit to zero
-        *((size_t*) UNSCALED_POINTER_ADD(current, remainingFreeSize-WORD_SIZE)) = current->sizeAndTags; // Set the block's new footer
+        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, (SIZE(oldBlockInfo->sizeAndTags))-WORD_SIZE)) = newFreeBlock->sizeAndTags; // Set the block's new footer
         return (UNSCALED_POINTER_ADD(oldBlockInfo, WORD_SIZE)); // Return pointer to data after sizeAndTags
     }
 
     /* From here on out, oldPayloadSize < newPayloadSize */
 
     /* TODO: // remove todo when done, leave the rest of the comment wheb dibe
-     * Check if there is enoguh room in the next blocks over
+     * Check if there is enough room in the next blocks over
      * If there is, we set those blocks as occupied for our
      * new memory occupations
      * Else, we run mm_malloc, free our old memory, and return
