@@ -479,6 +479,27 @@ void* mm_realloc(void* ptr, size_t size) {
     // Free memory outside of new size bytes
     if (oldPayloadSize > size) {
         // TODO: Remove unused byte blocks
+        size_t precedingBlockUseTag = oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED; // Save used bit
+        size += WORD_SIZE; // Add 1 word for initial size header
+        size_t reqSize; // Allocate enough space for our smaller block
+        if (size <= MIN_BLOCK_SIZE)
+            reqSize = MIN_BLOCK_SIZE;
+        else
+            reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT);
+        size_t remainingFreeSize = oldPayloadSize - reqSize;
+        oldBlockInfo->sizeAndTags = reqSize; // Set the block's new size
+        oldBlockInfo->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Build and set a new tag 
+        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize-WORD_SIZE)) = oldBlockInfo->sizeAndTags; // Set the block's new footer
+
+        // Iterate through blocks until we get to the blocks we need to free
+        BlockInfo* current = oldBlockInfo;
+        for(int m = 0; m < size; m++) {
+            current = current->next;
+        }
+
+        current->sizeAndTags = remainingFreeSize; // Set size of free block
+        current->sizeAndTags &= ~TAG_USED; // Set used bit to zero
+        *((size_t*) UNSCALED_POINTER_ADD(current, remainingFreeSize-WORD_SIZE)) = current->sizeAndTags; // Set the block's new footer
         return ptr;
     }
 
