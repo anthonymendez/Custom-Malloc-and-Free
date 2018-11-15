@@ -483,8 +483,8 @@ void* mm_realloc(void* ptr, size_t size) {
     // If our new size is smaller than our old size
     // Free memory outside of new size bytes
     // First check if we have enough bytes to store our free byte
-    // If we don't, we just free and call malloc with our new size
-    // Else we split up our shrink our block size, and create a new free block
+    // If we don't, call malloc, copy our data, and then free
+    // Else we split up our shrink our block size, and a new free block
     if (oldPayloadSize > size) {
         // TODO: Remove unused byte blocks
         size_t precedingBlockUseTag = oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED; // Save used bit
@@ -497,7 +497,6 @@ void* mm_realloc(void* ptr, size_t size) {
         size_t remainingFreeSize = oldPayloadSize - reqSize;
         oldBlockInfo->sizeAndTags = reqSize; // Set the block's new size
         oldBlockInfo->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Build and set a new tag 
-        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize-WORD_SIZE)) = oldBlockInfo->sizeAndTags; // Set the block's new footer
 
         BlockInfo* newFreeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize);
         newFreeBlock->sizeAndTags = remainingFreeSize; // Set size of free block
@@ -513,19 +512,67 @@ void* mm_realloc(void* ptr, size_t size) {
      * Check if there is enough room in the next blocks over
      * If there is, we set those blocks as occupied for our
      * new memory occupations
-     * Else, we run mm_malloc, free our old memory, and return
+     * Else, we run malloc, copy our data, free our old memory, and return
      * the newPtr we got from mm_malloc
      */
 
-    
+    size_t newSize = oldPayloadSize;
+    BlockInfo *blockCursor = oldBlockInfo;
+    BlockInfo *newBlock;
+    BlockInfo *freeBlock;
+    // Check preceding free blocks in memory and coalesce
+    while ((blockCursor->sizeAndTags & TAG_PRECEDING_USED) == 0 && newSize < size) {
+        // While block preceding this one in memory is free
 
-    // malloc new chunk of bytes and check if it succeeded
-    void* newPtr = mm_malloc(size);
-    if (newPtr == NULL) {
-        return NULL;
+        // Get size of preceding block
+        size_t precSize = SIZE(*((size_t*) UNSCALED_POINTER_SUB(blockCursor, WORD_SIZE)));
+        // Use size to find block info of preceding block
+        freeBlock = (BlockInfo*) UNSCALED_POINTER_SUB(blockCursor, precSize);
+        // Remove block from free list
+        removeFreeBlock(freeBlock);
+
+        // Count block's size and update block pointer
+        newSize += precSize;
+        blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(blockCursor, precSize);
+    }
+    newBlock = blockCursor;
+
+    // TODO: We shift data bytes backwards here
+
+    // Check following free blocks in memory and coalesce
+    blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize);
+    while ((blockCursor->sizeAndTags & TAG_USED) == 0 && newSize < size) {
+        // While the following block is free:
+
+        // Get size of following block
+        size_t follSize = SIZE(blockCursor->sizeAndTags);
+        // Remove from free list
+        removeFreeBlock(blockCursor);
+        // Count size and step to following block
+        newSize += follSize;
+        blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(blockCursor, follSize);
     }
 
-    free(ptr); // Free old memory
+    // Check if enough space as been coalesced.
+    // If so, return newBlock
+    // If not, call malloc, copy data to new location, and free old pointer,
+    // and return new pointer from malloc
 
-    return newPtr; // Return new location
+    if (newSize == size) {
+        return newBlock;
+    } else {
+        // malloc new chunk of bytes and check if it succeeded
+        void* newPtr = mm_malloc(size);
+        if (newPtr == NULL) {
+            return NULL;
+        }
+
+        //TODO: Copy data to newPtr
+
+        // Free old chunk (maybe modified) memory
+        free(newBlock);
+
+        // Return new allocated chunk of memory with data
+        return newPtr;
+    }
 }
