@@ -486,24 +486,32 @@ void* mm_realloc(void* ptr, size_t size) {
     // If we don't, call malloc, copy our data, and then free
     // Else we split up our shrink our block size, and a new free block
     if (oldPayloadSize > size) {
-        // TODO: Remove unused byte blocks
-        size_t precedingBlockUseTag = oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED; // Save used bit
-        size += WORD_SIZE; // Add 1 word for initial size header
-        size_t reqSize; // Allocate enough space for our smaller block
-        if (size <= MIN_BLOCK_SIZE)
+        // Add 1 word for initial size header
+        size += WORD_SIZE;
+        size_t reqSize;
+        // Check if new size is above minimum for block size
+        if (size <= MIN_BLOCK_SIZE) {
             reqSize = MIN_BLOCK_SIZE;
-        else
+        } else {
             reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT);
-        size_t remainingFreeSize = oldPayloadSize - reqSize;
-        oldBlockInfo->sizeAndTags = reqSize; // Set the block's new size
-        oldBlockInfo->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Build and set a new tag 
+        }
+        // Modify oldBlockInfo size and tag
+        size_t remainingFreeSize = oldPayloadSize - reqSize; // Size leftover for free block
+        oldBlockInfo->sizeAndTags = reqSize; // Set new smaller size to allocated block
+        oldBlockInfo->sizeAndTags |= (TAG_USED | (oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED)); // Set tag to previous tag
 
-        BlockInfo* newFreeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize);
-        newFreeBlock->sizeAndTags = remainingFreeSize; // Set size of free block
-        newFreeBlock->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Set preceding bit to one
-        newFreeBlock->sizeAndTags &= ~TAG_USED; // Set used bit to zero
-        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, (SIZE(oldBlockInfo->sizeAndTags))-WORD_SIZE)) = newFreeBlock->sizeAndTags; // Set the block's new footer
-        return (UNSCALED_POINTER_ADD(oldBlockInfo, WORD_SIZE)); // Return pointer to data after sizeAndTags
+        // Go to block of new free block
+        BlockInfo* freeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize);
+        freeBlock->sizeAndTags = remainingFreeSize; // Set size of free block to difference in size
+        freeBlock->sizeAndTags |= (TAG_USED | (oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED)); // Set preceding bit to 1
+        freeBlock->sizeAndTags &= ~TAG_USED; // Set used bit to 0
+        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize-WORD_SIZE)) = freeBlock->sizeAndTags; // Set Footer to sizeAndTag
+
+        // Add new free block to free list
+        insertFreeBlock(freeBlock);
+
+        // Return pointer to old block with modified size and tag
+        return oldBlockInfo;
     }
 
     /* From here on out, oldPayloadSize < newPayloadSize */
