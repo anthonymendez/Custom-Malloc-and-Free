@@ -468,10 +468,13 @@ void* mm_realloc(void* ptr, size_t size) {
     oldPayloadSize = SIZE(oldBlockInfo->sizeAndTags); // Get size of block to realloc
     oldFollowingBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize); // Get following block
 
-    // Check if new and old size is the same, if so,
+    // Check if new and old size is the same or, 
+    // if there is not enough room for a free block
+    // if so,
     // just return our current pointer since nothing will change
     // TODO: Is this fine with what he wants from Optional Extra Credit?
-    if(oldPayloadSize == size) {
+    if(oldPayloadSize == size ||
+       oldPayloadSize-size < MIN_BLOCK_SIZE) {
         return ptr;
     }
 
