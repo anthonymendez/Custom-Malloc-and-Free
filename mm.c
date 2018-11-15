@@ -545,7 +545,9 @@ void* mm_realloc(void* ptr, size_t size) {
     }
     newBlock = blockCursor;
 
-    // TODO: We shift data bytes backwards here
+    if(newBlock != oldBlockInfo) {
+        // TODO: We shift data bytes backwards here
+    }
 
     // Check following free blocks in memory and coalesce
     blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize);
