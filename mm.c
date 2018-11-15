@@ -564,11 +564,13 @@ void* mm_realloc(void* ptr, size_t size) {
     }
 
     // Check if enough space as been coalesced.
-    // If so, return newBlock
+    // If so, modify sizeAndTags and return newBlock
     // If not, call malloc, copy data to new location, and free old pointer,
     // and return new pointer from malloc
 
     if (newSize == size) {
+        newBlock->sizeAndTags = newSize; // Set new size of block
+        newBlock->sizeAndTags |= (TAG_USED | (oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED)); // Set tag of previous old block
         return newBlock;
     } else {
         // malloc new chunk of bytes and check if it succeeded
