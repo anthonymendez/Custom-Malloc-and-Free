@@ -4,6 +4,8 @@
  * 
  * Anthony Mendez
  * anthonymende@umass.edu
+ *
+ * Extra Credit realloc has been attempted
  */
 /*-------------------------------------------------------------------                             
  * Lab 5 Starter code:                                                                            
@@ -507,7 +509,7 @@ void* mm_realloc(void* ptr, size_t size) {
 
     /* From here on out, oldPayloadSize < newPayloadSize */
 
-    /* TODO: // remove todo when done, leave the rest of the comment wheb dibe
+    /* TODO: // remove todo when done, leave the rest of the comment when done
      * Check if there is enough room in the next blocks over
      * If there is, we set those blocks as occupied for our
      * new memory occupations
@@ -515,23 +517,7 @@ void* mm_realloc(void* ptr, size_t size) {
      * the newPtr we got from mm_malloc
      */
 
-    int m = 0;
-    while (0) { // Check if our next block is occupied
-        // Set block as occupied here
-
-        m++; // Increment size counter
-
-        if (0) { // Check if we are at our required size here
-            m = 0;
-            while(0) { // Iterate through new blocks and set as occupied
-                // Set new blocks as occupied here
-
-                m++; // Increment size counter
-            }
-
-            return ptr; // Return old ptr
-        }
-    }
+    
 
     // malloc new chunk of bytes and check if it succeeded
     void* newPtr = mm_malloc(size);
