@@ -358,6 +358,31 @@ int mm_init () {
   return 0;
 }
 
+// Check if pointer is a valid location in heap
+int isValidPtr(void* ptr) {
+    return (
+       ptr >= mem_heap_lo() &&
+       ptr <= mem_heap_hi() - MIN_BLOCK_SIZE
+    );
+}
+
+// Copy data between pointer locations, return 1 on success
+int copyWords(void* src, void* dest, size_t lengthWords) {
+	// Check ending bounds for src and dest
+	void* srcEnd = UNSCALED_POINTER_ADD(src,(lengthWords * WORD_SIZE));
+	void* destEnd = UNSCALED_POINTER_ADD(dest,(lengthWords * WORD_SIZE));
+	if(!(isValidPtr(srcEnd) && isValidPtr(destEnd)))
+		return 0;
+
+	void* currSrc = src; // Set current source pointer
+	void* currDest = dest; // Set current destination pointer
+	for(int i=0; i<lengthWords; i++) {
+		*((size_t*) currDest) = *((size_t*) currSrc); // Copy data
+		currSrc = UNSCALED_POINTER_ADD(currSrc,WORD_SIZE); // Increment current source pointer
+		currDest = UNSCALED_POINTER_ADD(currDest,WORD_SIZE); // Increment current destination pointer
+	}
+	return 1;
+}
 
 // TOP-LEVEL ALLOCATOR INTERFACE ------------------------------------
 
@@ -417,7 +442,7 @@ void* mm_malloc (size_t size) {
 /* Free the block referenced by ptr. */
 void mm_free (void *ptr) {
 	// Make sure ptr is within the heap and freeable
-	if(ptr > mem_heap_hi() - MIN_BLOCK_SIZE)
+	if(!isValidPtr(ptr))
 		return;
 
 	size_t payloadSize;
@@ -447,32 +472,6 @@ void mm_free (void *ptr) {
 // Implement a heap consistency checker as needed.
 int mm_check() {
   return 0;
-}
-
-// Copy data between pointer locations, return 1 on success
-int copyWords(void* src, void* dest, size_t lengthWords) {
-	// Check ending bounds for src and dest
-	void* srcEnd = UNSCALED_POINTER_ADD(src,(lengthWords * WORD_SIZE));
-	void* destEnd = UNSCALED_POINTER_ADD(dest,(lengthWords * WORD_SIZE));
-	if(srcEnd > mem_heap_hi() - MIN_BLOCK_SIZE || destEnd > mem_heap_hi() - MIN_BLOCK_SIZE)
-		return 0;
-
-	void* currSrc = src; // Set current source pointer
-	void* currDest = dest; // Set current destination pointer
-	for(int i=0; i<lengthWords; i++) {
-		*((size_t*) currDest) = *((size_t*) currSrc); // Copy data
-		currSrc = UNSCALED_POINTER_ADD(currSrc,WORD_SIZE); // Increment current source pointer
-		currDest = UNSCALED_POINTER_ADD(currDest,WORD_SIZE); // Increment current destination pointer
-	}
-	return 1;
-}
-
-// Check if pointer is a valid location in heap
-int isValidPtr(void* ptr) {
-    return (
-       ptr >= mem_heap_lo() &&
-       ptr <= mem_heap_hi() - MIN_BLOCK_SIZE
-    );
 }
 
 // Extra credit.
@@ -616,7 +615,7 @@ void* mm_realloc(void* ptr, size_t size) {
 		copyWords(oldBlockInfo, newPtr, oldPayloadSize / WORD_SIZE);
 
         // Free old chunk (maybe modified) memory
-        free(newBlock);
+        mm_free(newBlock);
 
         // Return new allocated chunk of memory with data
         return newPtr;
