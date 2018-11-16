@@ -467,6 +467,14 @@ int copyWords(void* src, void* dest, size_t lengthWords) {
 	return 1;
 }
 
+// Check if pointer is a valid location in heap
+int isValidPtr(void* ptr) {
+    return (
+       ptr >= mem_heap_lo() &&
+       ptr <= mem_head_hi() - MIN_BLOCK_SIZE
+    );
+}
+
 // Extra credit.
 void* mm_realloc(void* ptr, size_t size) {
     // PTR is null, call malloc(size)
@@ -549,6 +557,9 @@ void* mm_realloc(void* ptr, size_t size) {
         // While block preceding this one in memory is free
 
         // Get size of preceding block
+        if(!isValidPtr(UNSCALED_POINTER_SUB(blockCursor, WORD_SIZE))) {
+           break; 
+        }
         size_t precSize = SIZE(*((size_t*) UNSCALED_POINTER_SUB(blockCursor, WORD_SIZE)));
         // Use size to find block info of preceding block
         freeBlock = (BlockInfo*) UNSCALED_POINTER_SUB(blockCursor, precSize);
@@ -567,17 +578,22 @@ void* mm_realloc(void* ptr, size_t size) {
     }
 
     // Check following free blocks in memory and coalesce
-    blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize);
-    while ((blockCursor->sizeAndTags & TAG_USED) == 0 && newSize < size) {
-        // While the following block is free:
+    if(!isValidPtr(UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize))) {
+        blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize);
+        while ((blockCursor->sizeAndTags & TAG_USED) == 0 && newSize < size) {
+            // While the following block is free:
 
-        // Get size of following block
-        size_t follSize = SIZE(blockCursor->sizeAndTags);
-        // Remove from free list
-        removeFreeBlock(blockCursor);
-        // Count size and step to following block
-        newSize += follSize;
-        blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(blockCursor, follSize);
+            // Get size of following block
+            size_t follSize = SIZE(blockCursor->sizeAndTags);
+            // Remove from free list
+            removeFreeBlock(blockCursor);
+            // Count size and step to following block
+            newSize += follSize;
+            if(!isValidPtr(UNSCALED_POINTER_ADD(blockCursor, follSize))) {
+               break;
+            }
+            blockCursor = (BlockInfo*) UNSCALED_POINTER_ADD(blockCursor, follSize);
+        }
     }
 
     // Check if enough space as been coalesced.
