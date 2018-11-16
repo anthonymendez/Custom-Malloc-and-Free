@@ -471,7 +471,7 @@ int copyWords(void* src, void* dest, size_t lengthWords) {
 int isValidPtr(void* ptr) {
     return (
        ptr >= mem_heap_lo() &&
-       ptr <= mem_head_hi() - MIN_BLOCK_SIZE
+       ptr <= mem_heap_hi() - MIN_BLOCK_SIZE
     );
 }
 
