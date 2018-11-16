@@ -449,6 +449,24 @@ int mm_check() {
   return 0;
 }
 
+// Copy data between pointer locations, return 1 on success
+int copyWords(void* src, void* dest, size_t lengthWords) {
+	// Check ending bounds for src and dest
+	void* srcEnd = UNSCALED_POINTER_ADD(src,(lengthWords * WORD_SIZE));
+	void* destEnd = UNSCALED_POINTER_ADD(dest,(lengthWords * WORD_SIZE));
+	if(srcEnd > mem_heap_hi() - MIN_BLOCK_SIZE || destEnd > mem_heap_hi() - MIN_BLOCK_SIZE)
+		return 0;
+
+	void* currSrc = src; // Set current source pointer
+	void* currDest = dest; // Set current destination pointer
+	for(int i=0; i<lengthWords; i++) {
+		*((size_t*) currDest) = *((size_t*) currSrc); // Copy data
+		currSrc = UNSCALED_POINTER_ADD(currSrc,WORD_SIZE); // Increment current source pointer
+		currDest = UNSCALED_POINTER_ADD(currDest,WORD_SIZE); // Increment current destination pointer
+	}
+	return 1;
+}
+
 // Extra credit.
 void* mm_realloc(void* ptr, size_t size) {
     // PTR is null, call malloc(size)
@@ -465,10 +483,8 @@ void* mm_realloc(void* ptr, size_t size) {
     // Size, BlockInfo and FollowingBlockInfo of ptr
     size_t oldPayloadSize;
     BlockInfo* oldBlockInfo;
-    BlockInfo* oldFollowingBlock;
     oldBlockInfo = (BlockInfo*) UNSCALED_POINTER_SUB(ptr, WORD_SIZE); // Get block to realloc
     oldPayloadSize = SIZE(oldBlockInfo->sizeAndTags); // Get size of block to realloc
-    oldFollowingBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, oldPayloadSize); // Get following block
 
     // Check if new and old size is the same or, 
     // if there is not enough room for a free block
@@ -547,6 +563,7 @@ void* mm_realloc(void* ptr, size_t size) {
 
     if(newBlock != oldBlockInfo) {
         // TODO: We shift data bytes backwards here
+		copyWords(oldBlockInfo, newBlock, oldPayloadSize / WORD_SIZE);
     }
 
     // Check following free blocks in memory and coalesce
@@ -580,6 +597,7 @@ void* mm_realloc(void* ptr, size_t size) {
         }
 
         //TODO: Copy data to newPtr
+		copyWords(oldBlockInfo, newPtr, oldPayloadSize / WORD_SIZE);
 
         // Free old chunk (maybe modified) memory
         free(newBlock);
