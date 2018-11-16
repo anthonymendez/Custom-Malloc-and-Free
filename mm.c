@@ -477,29 +477,35 @@ int mm_check() {
 // Extra credit.
 void* mm_realloc(void* ptr, size_t size) {
     // PTR is null, call malloc(size)
+    printf("1\n");
     if (ptr == NULL) {
         return mm_malloc(size);
     }
-
+    printf("2\n");
     // PTR is not null and size is 0, call free(ptr)
     if (ptr != NULL && size == 0) {
         mm_free(ptr);
+        printf("3\n");
         return NULL;
     }
-
+    printf("4\n");
     // Size, BlockInfo and FollowingBlockInfo of ptr
     size_t oldPayloadSize;
+    size_t precedingBlockUseTag;
     BlockInfo* oldBlockInfo;
+    printf("5\n");
     oldBlockInfo = (BlockInfo*) UNSCALED_POINTER_SUB(ptr, WORD_SIZE); // Get block to realloc
     oldPayloadSize = SIZE(oldBlockInfo->sizeAndTags); // Get size of block to realloc
-
+    precedingBlockUseTag = oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED;
+    printf("6\n");
     // Check if new and old size is the same or, 
     // if there is not enough room for a free block
     // if so,
     // just return our current pointer since nothing will change
     // TODO: Is this fine with what he wants from Optional Extra Credit?
-    if(oldPayloadSize == size ||
-       oldPayloadSize-size < MIN_BLOCK_SIZE) {
+    if(oldPayloadSize == size /*||
+       oldPayloadSize-size < MIN_BLOCK_SIZE*/) {
+        printf("7\n");
         return ptr;
     }
 
@@ -518,23 +524,31 @@ void* mm_realloc(void* ptr, size_t size) {
         } else {
             reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT);
         }
+
+        if (reqSize < MIN_BLOCK_SIZE) {
+            return ptr;
+        }
+
+        printf("oldPayloadSize: %d\n", oldPayloadSize);
+        printf("reqSize: %d\n", reqSize);
+        printf("size: %d\n", size);
         // Modify oldBlockInfo size and tag
         size_t remainingFreeSize = oldPayloadSize - reqSize; // Size leftover for free block
         oldBlockInfo->sizeAndTags = reqSize; // Set new smaller size to allocated block
-        oldBlockInfo->sizeAndTags |= (TAG_USED | (oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED)); // Set tag to previous tag
-
+        oldBlockInfo->sizeAndTags |= (TAG_USED | precedingBlockUseTag); // Set tag to previous tag
+        printf("9\n");
         // Go to block of new free block
         BlockInfo* freeBlock = (BlockInfo*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize);
         freeBlock->sizeAndTags = remainingFreeSize; // Set size of free block to difference in size
-        freeBlock->sizeAndTags |= (TAG_USED | (oldBlockInfo->sizeAndTags & TAG_PRECEDING_USED)); // Set preceding bit to 1
+        freeBlock->sizeAndTags |= TAG_PRECEDING_USED; // Set preceding bit to 1
         freeBlock->sizeAndTags &= ~TAG_USED; // Set used bit to 0
-        *((size_t*) UNSCALED_POINTER_ADD(oldBlockInfo, reqSize-WORD_SIZE)) = freeBlock->sizeAndTags; // Set Footer to sizeAndTag
-
+        *((size_t*) UNSCALED_POINTER_ADD(freeBlock, remainingFreeSize-WORD_SIZE)) = freeBlock->sizeAndTags; // Set Footer to sizeAndTag
+        printf("10\n");
         // Add new free block to free list
         insertFreeBlock(freeBlock);
-
+        printf("11\n");
         // Return pointer to old block with modified size and tag
-        return oldBlockInfo;
+        return UNSCALED_POINTER_ADD(oldBlockInfo, WORD_SIZE);
     }
 
     /* From here on out, oldPayloadSize < newPayloadSize */
@@ -606,16 +620,20 @@ void* mm_realloc(void* ptr, size_t size) {
         return newBlock;
     } else {
         // malloc new chunk of bytes and check if it succeeded
+        printf("malloc newPtr\n");
         void* newPtr = mm_malloc(size);
+        printf("Malloced newPtr\n");
         if (newPtr == NULL) {
             return NULL;
         }
 
         //TODO: Copy data to newPtr
-		copyWords(oldBlockInfo, newPtr, oldPayloadSize / WORD_SIZE);
-
+        printf("Copying words\n");
+		copyWords(newBlock, newPtr, oldPayloadSize / WORD_SIZE);
+        printf("Copyed\n");
         // Free old chunk (maybe modified) memory
-        mm_free(newBlock);
+        mm_free(UNSCALED_POINTER_ADD(newBlock, WORD_SIZE));
+        printf("Freed!\n");
 
         // Return new allocated chunk of memory with data
         return newPtr;
